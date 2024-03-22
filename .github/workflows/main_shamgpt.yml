@@ -1,8 +1,7 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
+# Docs for the Azure Web Apps Deploy action: https://github.com/azure/functions-action
 # More GitHub Actions for Azure: https://github.com/Azure/actions
-# More info on Python, GitHub Actions, and Azure App Service: https://aka.ms/python-webapps-actions
 
-name: Build and deploy Python app to Azure Web App - ShamGPT
+name: Build and deploy Node.js project to Azure Function App - ShamGPT
 
 on:
   push:
@@ -10,41 +9,39 @@ on:
       - main
   workflow_dispatch:
 
+env:
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.' # set this to the path to your web app project, defaults to the repository root
+  NODE_VERSION: '20.x' # set this to the node version to use (supports 8.x, 10.x, 12.x)
+
 jobs:
   build:
-    runs-on: ubuntu-latest
-
+    runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: 'Checkout GitHub Action'
+        uses: actions/checkout@v4
 
-      - name: Set up Python version
-        uses: actions/setup-python@v1
+      - name: Setup Node ${{ env.NODE_VERSION }} Environment
+        uses: actions/setup-node@v3
         with:
-          python-version: '3.12'
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Create and start virtual environment
+      - name: 'Resolve Project Dependencies Using Npm'
+        shell: pwsh
         run: |
-          python -m venv venv
-          source venv/bin/activate
-      
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-        
-      # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
+          pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
+          npm install
+          npm run build --if-present
+          npm run test --if-present
+          popd
 
-      - name: Zip artifact for deployment
-        run: zip release.zip ./* -r
-
-      - name: Upload artifact for deployment jobs
+      - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v3
         with:
-          name: python-app
-          path: |
-            release.zip
-            !venv/
+          name: node-app
+          path: .
 
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     needs: build
     environment:
       name: 'Production'
@@ -56,23 +53,20 @@ jobs:
       - name: Download artifact from build job
         uses: actions/download-artifact@v3
         with:
-          name: python-app
-
-      - name: Unzip artifact for deployment
-        run: unzip release.zip
-
+          name: node-app
       
       - name: Login to Azure
         uses: azure/login@v1
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_D4DE7F75A21C45DFA3DC57D311BED79A }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_76ABA0587A6E4256A5DD1F229455F39E }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_DDE891B8A734463CA82DAD8E32AF3586 }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_C76BD3D8447742A5BA0A946866EFF851 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_0E50260661D24914BCF31EBC39109AED }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_629000789C574D678A41C0828B46D8A5 }}
 
-      - name: 'Deploy to Azure Web App'
-        uses: azure/webapps-deploy@v2
-        id: deploy-to-webapp
+      - name: 'Run Azure Functions Action'
+        uses: Azure/functions-action@v1
+        id: fa
         with:
           app-name: 'ShamGPT'
           slot-name: 'Production'
+          package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
           
